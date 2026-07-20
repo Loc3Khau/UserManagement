@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import Dashboard from './Dashboard'
+import Dashboard1 from './Dashboard1'
+import Dashboard2 from './Dashboard2'
 
 // Chỉ cho phép chữ cái (kể cả có dấu tiếng Việt) và khoảng trắng
 const NAME_REGEX = /^[\p{L}\s]*$/u
@@ -26,7 +27,7 @@ function EyeIcon({ visible }) {
 
 function App() {
   const [isLogin, setIsLogin] = useState(true)
-  const [page, setPage] = useState('auth') // 'auth' | 'dashboard'
+  const [page, setPage] = useState('auth') // 'auth' | 'dashboard1' | 'dashboard2'
 
   // State cho form đăng nhập
   const [loginEmail, setLoginEmail] = useState('')
@@ -43,13 +44,10 @@ function App() {
   const [regPassword, setRegPassword] = useState('')
   const [showRegPassword, setShowRegPassword] = useState(false)
 
-  const handleNameChange = (setter) => (e) => {
-    const value = e.target.value
-    // Lọc bỏ mọi ký tự không phải chữ cái/khoảng trắng ngay khi gõ
-    if (NAME_REGEX.test(value)) {
-      setter(value)
-    }
-  }
+  // Không lọc ký tự khi đang gõ vì các bộ gõ tiếng Việt (Unikey, VNI...) mô
+  // phỏng phím Backspace + gõ lại ở tầng hệ điều hành, không qua composition
+  // chuẩn của trình duyệt -> lọc theo từng ký tự sẽ làm rớt chữ khi gõ dấu.
+  // Định dạng tên chỉ được kiểm tra khi bấm nút "Tạo tài khoản" (xem handleRegisterClick).
 
   const handlePhoneChange = (e) => {
     const value = e.target.value
@@ -76,8 +74,10 @@ function App() {
       alert('mật khẩu bạn yếu vãi!')
       return
     }
-    // Đã thỏa mọi điều kiện -> chuyển sang trang Dashboard
-    setPage('dashboard')
+    // Đã thỏa mọi điều kiện -> xác định vai trò rồi chuyển trang phù hợp
+    // Quy ước tạm: email có chứa "admin" -> vào Dashboard1 (Admin), còn lại -> Dashboard2 (User)
+    const isAdmin = loginEmail.toLowerCase().includes('admin')
+    setPage(isAdmin ? 'dashboard1' : 'dashboard2')
   }
 
   const handleRegisterClick = () => {
@@ -105,7 +105,7 @@ function App() {
       alert('Vui lòng nhập đầy đủ thông tin!')
       return
     }
-    if (!NAME_REGEX.test(regName)) {
+    if (!NAME_REGEX.test(regName.normalize('NFC'))) {
       alert('bạn đang nhập sai tên của mình')
       return
     }
@@ -124,16 +124,17 @@ function App() {
     alert('Đang đăng ký...')
   }
 
-  if (page === 'dashboard') {
-    return (
-      <Dashboard
-        onLogout={() => {
-          setPage('auth')
-          setLoginEmail('')
-          setLoginPassword('')
-        }}
-      />
-    )
+  const handleLogout = () => {
+    setPage('auth')
+    setLoginEmail('')
+    setLoginPassword('')
+  }
+
+  if (page === 'dashboard1') {
+    return <Dashboard1 loginEmail={loginEmail} onLogout={handleLogout} />
+  }
+  if (page === 'dashboard2') {
+    return <Dashboard2 loginEmail={loginEmail} onLogout={handleLogout} />
   }
 
   return (
@@ -288,7 +289,7 @@ function App() {
               style={styles.input}
               className="input-focus"
               value={regName}
-              onChange={handleNameChange(setRegName)}
+              onChange={(e) => setRegName(e.target.value)}
             />
 
             <input
