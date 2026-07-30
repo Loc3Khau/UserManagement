@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Dashboard1 from './Dashboard1'
 import Dashboard2 from './Dashboard2'
-
+import { apiFetch, saveSession } from './service/api'
 // Chỉ cho phép chữ cái (kể cả có dấu tiếng Việt) và khoảng trắng
 const NAME_REGEX = /^[\p{L}\s]*$/u
 // Bắt buộc: chữ thường, chữ hoa, số, ký tự đặc biệt, tối thiểu 8 ký tự
@@ -57,7 +57,8 @@ function App() {
     }
   }
 
-  const handleLoginClick = () => {
+  // ĐÃ SỬA: gọi API /auth/login thật, lưu session, điều hướng theo role backend trả về
+  const handleLoginClick = async () => {
     if (loginEmail.trim() === '' && loginPassword.trim() === '') {
       alert('bạn đã nhập chi mô ??')
       return
@@ -74,13 +75,21 @@ function App() {
       alert('mật khẩu bạn yếu vãi!')
       return
     }
-    // Đã thỏa mọi điều kiện -> xác định vai trò rồi chuyển trang phù hợp
-    // Quy ước tạm: email có chứa "admin" -> vào Dashboard1 (Admin), còn lại -> Dashboard2 (User)
-    const isAdmin = loginEmail.toLowerCase().includes('admin')
-    setPage(isAdmin ? 'dashboard1' : 'dashboard2')
+
+    try {
+      const data = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      })
+      saveSession(data) // lưu access_token, role, id, avatar_url vào localStorage
+      setPage(data.role === 'admin' ? 'dashboard1' : 'dashboard2')
+    } catch (err) {
+      alert(err.message) // ví dụ: "Sai email hoặc mật khẩu"
+    }
   }
 
-  const handleRegisterClick = () => {
+  // ĐÃ SỬA: gọi API /auth/register thật thay vì chỉ alert()
+  const handleRegisterClick = async () => {
     const allEmpty =
       regName.trim() === '' &&
       regDob === '' &&
@@ -121,7 +130,27 @@ function App() {
       alert('mật khẩu bạn yếu vãi!')
       return
     }
-    alert('Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.')
+
+    try {
+      // Tên field khớp với models.py (full_name, date_of_birth, gender, address, phone_number)
+      // Nếu schemas.py (RegisterRequest) dùng tên khác thì cần đổi lại object bên dưới cho khớp.
+      await apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          full_name: regName,
+          date_of_birth: regDob,
+          gender: regGender,
+          address: regAddress,
+          phone_number: regPhone,
+          email: regEmail,
+          password: regPassword,
+        }),
+      })
+      alert('Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.')
+      setIsLogin(true) // tự chuyển qua form đăng nhập cho tiện
+    } catch (err) {
+      alert(err.message)
+    }
   }
 
   const handleLogout = () => {

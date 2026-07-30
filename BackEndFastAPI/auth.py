@@ -8,7 +8,7 @@ from database import get_db
 from models import User
 
 # --- Cấu hình ---
-SECRET_KEY = "doi-chuoi-nay-thanh-chuoi-bi-mat-cua-ban"  # nên để trong biến môi trường (.env)
+SECRET_KEY = "557e8e3638e55973c0dee36d5bf4366d5aa133c58e3b3c1a3caacb6d63614054"  # nên để trong biến môi trường (.env)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # token hết hạn sau 1 ngày
 

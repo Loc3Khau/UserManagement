@@ -1,13 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AvatarUploadGate from './AvatarUploadGate'
 
-// Dữ liệu người dùng mẫu (thực tế sẽ lấy từ API/backend)
-const MOCK_USERS = [
-  { id: 1, name: 'Trần Thị Mai', email: 'mai.tran@gmail.com', dob: '1998-03-12', gender: 'nữ', address: 'Quận 1, TP.HCM', phone: '0901234567', status: 'active' },
-  { id: 2, name: 'Lê Văn Hùng', email: 'hung.le@gmail.com', dob: '1995-07-20', gender: 'nam', address: 'Cầu Giấy, Hà Nội', phone: '0912345678', status: 'active' },
-  { id: 3, name: 'Phạm Thu Hà', email: 'ha.pham@gmail.com', dob: '2000-11-02', gender: 'nữ', address: 'Hải Châu, Đà Nẵng', phone: '0923456789', status: 'locked' },
-  { id: 4, name: 'Nguyễn Đức Anh', email: 'anh.nguyen@gmail.com', dob: '1997-01-15', gender: 'nam', address: 'Thanh Khê, Đà Nẵng', phone: '0934567890', status: 'active' },
-]
+// Base URL của FastAPI backend
+const API_BASE_URL = 'http://localhost:8000'
 
 function GlowStyles() {
   return (
@@ -55,31 +50,93 @@ function Modal({ title, onClose, children }) {
   )
 }
 
+// Lấy token đã lưu lúc login (localStorage key: access_token)
+// Nếu login flow của bạn lưu token ở chỗ khác thì đổi hàm này lại
+function getAuthHeaders() {
+  const token = localStorage.getItem('access_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
+
 function Dashboard1({ loginEmail, onLogout }) {
   const [avatarUrl, setAvatarUrl] = useState(null)
-  const [users, setUsers] = useState(MOCK_USERS)
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
   const [viewingUser, setViewingUser] = useState(null)
   const [showEditProfile, setShowEditProfile] = useState(false)
 
   const [profile, setProfile] = useState({
     name: 'Quản trị viên',
-    email: loginEmail || 'admin@gmail.com',
-    dob: '',
-    gender: '',
-    address: '',
-    phone: '',
+    email: loginEmail || 'nguyenthanhbao031123@gmail.com',
+    dob: '03/11/2006',
+    gender: 'Nam',
+    address: 'Đà Nẵng',
+    phone: '0858745797',
   })
+
+  // Gọi API lấy danh sách user ngay khi component được mount (render lần đầu)
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  const fetchUsers = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/`, {
+        headers: getAuthHeaders(),
+      })
+      if (!res.ok) {
+        throw new Error(`Lỗi API: ${res.status}`)
+      }
+      const data = await res.json()
+      setUsers(data)
+    } catch (err) {
+      setError(err.message || 'Không thể tải danh sách người dùng')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Bắt buộc chọn ảnh đại diện trước khi vào Dashboard chính thức
   if (!avatarUrl) {
     return <AvatarUploadGate name={profile.name} onUploaded={setAvatarUrl} />
   }
 
-  const toggleLock = (id) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, status: u.status === 'active' ? 'locked' : 'active' } : u))
-    )
+  const toggleLock = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/lock/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+      })
+      if (!res.ok) {
+        throw new Error(`Lỗi API: ${res.status}`)
+      }
+      const updated = await res.json()
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: updated.status } : u))
+      )
+    } catch (err) {
+      alert('Khóa/mở khóa thất bại: ' + err.message)
+    }
   }
+
+  // Lọc danh sách theo từ khóa: tên, giới tính, địa chỉ, sđt
+  // .toLowerCase() để search không phân biệt hoa/thường
+  const filteredUsers = users.filter((u) => {
+    const keyword = searchTerm.trim().toLowerCase()
+    if (!keyword) return true
+    return (
+      (u.full_name || '').toLowerCase().includes(keyword) ||
+      (u.gender || '').toLowerCase().includes(keyword) ||
+      (u.address || '').toLowerCase().includes(keyword) ||
+      (u.phone_number || '').toLowerCase().includes(keyword)
+    )
+  })
 
   return (
     <div style={styles.page}>
@@ -103,36 +160,56 @@ function Dashboard1({ loginEmail, onLogout }) {
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>Danh sách tài khoản người dùng</h2>
 
-          <div style={styles.tableHeaderRow}>
-            <span style={{ flex: 2 }}>Người dùng</span>
-            <span style={{ flex: 2 }}>Email</span>
-            <span style={{ flex: 1 }}>Trạng thái</span>
-            <span style={{ flex: 2, textAlign: 'right' }}>Hành động</span>
-          </div>
+          {/* Thanh tìm kiếm */}
+          <input
+            type="text"
+            placeholder="Tìm theo tên, giới tính, địa chỉ, số điện thoại..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={styles.searchInput}
+          />
 
-          {users.map((u) => (
-            <div key={u.id} className="row-hover" style={styles.tableRow}>
-              <span style={{ flex: 2, fontWeight: 600, color: '#333' }}>{u.name}</span>
-              <span style={{ flex: 2, color: '#666', fontSize: '13px' }}>{u.email}</span>
-              <span style={{ flex: 1 }}>
-                <span style={u.status === 'active' ? styles.badgeActive : styles.badgeLocked}>
-                  {u.status === 'active' ? 'Hoạt động' : 'Đã khóa'}
-                </span>
-              </span>
-              <span style={{ flex: 2, textAlign: 'right' }}>
-                <button className="btn-glow" style={styles.smallBtnOutline} onClick={() => setViewingUser(u)}>
-                  Xem hồ sơ
-                </button>
-                <button
-                  className="btn-glow"
-                  style={u.status === 'active' ? styles.smallBtnDanger : styles.smallBtnSuccess}
-                  onClick={() => toggleLock(u.id)}
-                >
-                  {u.status === 'active' ? 'Khóa' : 'Mở khóa'}
-                </button>
-              </span>
-            </div>
-          ))}
+          {loading && <p style={styles.stateText}>Đang tải danh sách...</p>}
+          {error && <p style={{ ...styles.stateText, color: '#d33' }}>{error}</p>}
+
+          {!loading && !error && (
+            <>
+              <div style={styles.tableHeaderRow}>
+                <span style={{ flex: 2 }}>Người dùng</span>
+                <span style={{ flex: 2 }}>Email</span>
+                <span style={{ flex: 1 }}>Trạng thái</span>
+                <span style={{ flex: 2, textAlign: 'right' }}>Hành động</span>
+              </div>
+
+              {filteredUsers.length === 0 && (
+                <p style={styles.stateText}>Không tìm thấy người dùng phù hợp.</p>
+              )}
+
+              {filteredUsers.map((u) => (
+                <div key={u.id} className="row-hover" style={styles.tableRow}>
+                  <span style={{ flex: 2, fontWeight: 600, color: '#333' }}>{u.full_name}</span>
+                  <span style={{ flex: 2, color: '#666', fontSize: '13px' }}>{u.email}</span>
+                  <span style={{ flex: 1 }}>
+                    <span style={u.status === 'active' ? styles.badgeActive : styles.badgeLocked}>
+                      {u.status === 'active' ? 'Hoạt động' : 'Đã khóa'}
+                    </span>
+                  </span>
+                  <span style={{ flex: 2, textAlign: 'right' }}>
+                    <button className="btn-glow" style={styles.smallBtnOutline} onClick={() => setViewingUser(u)}>
+                      Xem hồ sơ
+                    </button>
+                    <button
+                      className="btn-glow"
+                      style={u.status === 'active' ? styles.smallBtnDanger : styles.smallBtnSuccess}
+                      onClick={() => toggleLock(u.id)}
+                    >
+                      {u.status === 'active' ? 'Khóa' : 'Mở khóa'}
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -140,11 +217,11 @@ function Dashboard1({ loginEmail, onLogout }) {
       {viewingUser && (
         <Modal title="Hồ sơ người dùng" onClose={() => setViewingUser(null)}>
           <div style={styles.profileGrid}>
-            <Field label="Họ và tên" value={viewingUser.name} />
+            <Field label="Họ và tên" value={viewingUser.full_name} />
             <Field label="Email" value={viewingUser.email} />
-            <Field label="Ngày sinh" value={viewingUser.dob} />
+            <Field label="Ngày sinh" value={viewingUser.date_of_birth} />
             <Field label="Giới tính" value={viewingUser.gender} />
-            <Field label="Số điện thoại" value={viewingUser.phone} />
+            <Field label="Số điện thoại" value={viewingUser.phone_number} />
             <Field label="Địa chỉ" value={viewingUser.address} />
             <Field label="Trạng thái" value={viewingUser.status === 'active' ? 'Hoạt động' : 'Đã khóa'} />
           </div>
@@ -268,6 +345,22 @@ const styles = {
     margin: '0 0 20px 0',
     fontSize: '18px',
     color: '#333',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '10px 14px',
+    marginBottom: '18px',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    fontSize: '14px',
+    boxSizing: 'border-box',
+    outline: 'none',
+  },
+  stateText: {
+    padding: '20px 0',
+    textAlign: 'center',
+    color: '#999',
+    fontSize: '14px',
   },
   tableHeaderRow: {
     display: 'flex',

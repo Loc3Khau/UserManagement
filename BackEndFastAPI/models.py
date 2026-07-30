@@ -4,7 +4,7 @@ import enum
 
 class GenderEnum(str, enum.Enum):
     nam = "nam"
-    nu = "nữ"
+    nu = "nu"
 
 class RoleEnum(str, enum.Enum):
     admin = "admin"

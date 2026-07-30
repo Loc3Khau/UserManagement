@@ -65,6 +65,7 @@ async def upload_my_avatar(
 
 
 # --- Các API chỉ dành cho Admin ---
+
 @router.get("/")
 def list_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     users = db.query(User).filter(User.role == "user").all()
@@ -73,6 +74,10 @@ def list_users(admin: User = Depends(require_admin), db: Session = Depends(get_d
             "id": u.id,
             "full_name": u.full_name,
             "email": u.email,
+            "date_of_birth": u.date_of_birth,
+            "gender": u.gender,
+            "address": u.address,
+            "phone_number": u.phone_number,
             "status": u.status,
         }
         for u in users
